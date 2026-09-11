@@ -293,6 +293,12 @@ configure_feeds() {
     printf '\nsrc-link %s %s\n' "${feed_name}" "${repo_dir}" >> feeds.conf
   done < "${SOURCE_MAP_FILE}"
 
+  # 仅为自定义源码建立 feed 索引；不使用 install -a，避免安装未选择的包。
+  while IFS="${TAB}" read -r source_url source_ref feed_name repo_dir source_kind; do
+    [ "${source_kind}" = "git" ] || continue
+    ./scripts/feeds update "${feed_name}"
+  done < "${SOURCE_MAP_FILE}"
+
   log "安装选定的自定义包"
   while IFS="${TAB}" read -r package_dir source_url source_ref artifact_names; do
     mapping="$(lookup_source_mapping "${source_url}" "${source_ref}")"
