@@ -74,6 +74,12 @@ validate_source_ref() {
     fail "源码 Ref 包含非法字符：${source_ref}"
 }
 
+validate_artifact_names() {
+  artifact_names="$1"
+  printf '%s' "${artifact_names}" | grep -Eq '^[A-Za-z0-9._+-]+(,[A-Za-z0-9._+-]+)*$' ||
+    fail "产物包名格式错误（多个包请用逗号分隔）：${artifact_names}"
+}
+
 is_sdk_feed_source() {
   case "$1" in
     sdk://*)
@@ -146,24 +152,28 @@ normalize_package_list() {
     package_dir="${spec_line}"
     source_url="${PACKAGE_SOURCE_URL}"
     source_ref="${PACKAGE_SOURCE_REF}"
+    artifact_names=""
 
     case "${spec_line}" in
       *'|'*)
-        IFS='|' read -r field1 field2 field3 field4 <<EOF
+        IFS='|' read -r field1 field2 field3 field4 field5 <<EOF
 ${spec_line}
 EOF
-        [ -z "${field4:-}" ] || fail "包清单格式错误（仅支持 package_dir|source_url|source_ref）：${spec_line}"
+        [ -z "${field5:-}" ] || fail "包清单格式错误（仅支持 package_dir|source_url|source_ref|artifact_names）：${spec_line}"
         package_dir="$(trim "${field1}")"
         [ -n "${field2:-}" ] && source_url="$(trim "${field2}")"
         [ -n "${field3:-}" ] && source_ref="$(trim "${field3}")"
+        [ -n "${field4:-}" ] && artifact_names="$(trim "${field4}")"
         ;;
     esac
 
     validate_package_dir "${package_dir}"
     validate_source_url "${source_url}"
     validate_source_ref "${source_ref}"
+    [ -n "${artifact_names}" ] || artifact_names="${package_dir##*/}"
+    validate_artifact_names "${artifact_names}"
 
-    printf '%s\t%s\t%s\n' "${package_dir}" "${source_url}" "${source_ref}" >> "${PACKAGE_FILE}.tmp"
+    printf '%s\t%s\t%s\t%s\n' "${package_dir}" "${source_url}" "${source_ref}" "${artifact_names}" >> "${PACKAGE_FILE}.tmp"
   done < "${PACKAGE_RAW_FILE}"
 
   awk '!seen[$0]++ { print }' "${PACKAGE_FILE}.tmp" > "${PACKAGE_FILE}"
@@ -219,7 +229,7 @@ prepare_sources() {
   : > "${SOURCE_MAP_FILE}"
   source_index=0
 
-  while IFS="${TAB}" read -r package_dir source_url source_ref; do
+  while IFS="${TAB}" read -r package_dir source_url source_ref artifact_names; do
     mapping="$(lookup_source_mapping "${source_url}" "${source_ref}")"
     if [ -n "${mapping}" ]; then
       continue
@@ -248,7 +258,7 @@ prepare_local_tools() {
 
   export PATH="${BIN_DIR}:${SDK_ROOT}/staging_dir/host/bin:${SDK_ROOT}/staging_dir/hostpkg/bin:${PATH}"
 
-  while IFS="${TAB}" read -r package_dir source_url source_ref; do
+  while IFS="${TAB}" read -r package_dir source_url source_ref artifact_names; do
     mapping="$(lookup_source_mapping "${source_url}" "${source_ref}")"
     [ -n "${mapping}" ] || fail "未找到源码映射：${source_url} @ ${source_ref}"
 
@@ -281,7 +291,7 @@ configure_feeds() {
   ./scripts/feeds install -a
 
   log "安装选定的自定义包"
-  while IFS="${TAB}" read -r package_dir source_url source_ref; do
+  while IFS="${TAB}" read -r package_dir source_url source_ref artifact_names; do
     mapping="$(lookup_source_mapping "${source_url}" "${source_ref}")"
     [ -n "${mapping}" ] || fail "未找到源码映射：${source_url} @ ${source_ref}"
 
@@ -325,7 +335,7 @@ EOF
 compile_packages() {
   build_jobs="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
 
-  while IFS="${TAB}" read -r package_dir source_url source_ref; do
+  while IFS="${TAB}" read -r package_dir source_url source_ref artifact_names; do
     mapping="$(lookup_source_mapping "${source_url}" "${source_ref}")"
     [ -n "${mapping}" ] || fail "未找到源码映射：${source_url} @ ${source_ref}"
 
@@ -364,8 +374,8 @@ render_release_notes() {
     echo "Default Source Ref: ${PACKAGE_SOURCE_REF}"
     echo "Build Time (UTC): ${build_time}"
     echo "Selected Packages:"
-    while IFS="${TAB}" read -r package_dir source_url source_ref; do
-      echo "- ${package_dir} | ${source_url} @ ${source_ref}"
+    while IFS="${TAB}" read -r package_dir source_url source_ref artifact_names; do
+      echo "- ${package_dir} | ${source_url} @ ${source_ref} | artifacts: ${artifact_names}"
     done < "${PACKAGE_FILE}"
     echo "Resolved Source Commits:"
     while IFS="${TAB}" read -r source_url source_ref feed_name repo_dir source_kind; do
@@ -393,8 +403,8 @@ render_release_notes() {
     echo "- 构建时间(UTC): \`${build_time}\`"
     echo
     echo "## Selected packages"
-    while IFS="${TAB}" read -r package_dir source_url source_ref; do
-      echo "- \`${package_dir}\` from \`${source_url}\` @ \`${source_ref}\`"
+    while IFS="${TAB}" read -r package_dir source_url source_ref artifact_names; do
+      echo "- \`${package_dir}\` from \`${source_url}\` @ \`${source_ref}\` -> \`${artifact_names}\`"
     done < "${PACKAGE_FILE}"
     echo
     echo "## Resolved source commits"
@@ -415,14 +425,16 @@ collect_artifacts() {
     ! -name 'RELEASE_NOTES.md' \
     ! -name 'build.log' -delete
 
-  while IFS="${TAB}" read -r package_dir source_url source_ref; do
-    pkg_name="${package_dir##*/}"
-    matches="$(find "${package_root}" -type f -name "${pkg_name}_*.ipk" | sort)"
-    [ -n "${matches}" ] || fail "未找到目标包产物：${pkg_name}"
+  while IFS="${TAB}" read -r package_dir source_url source_ref artifact_names; do
+    printf '%s' "${artifact_names}" | tr ',' '\n' | while IFS= read -r pkg_name; do
+      [ -n "${pkg_name}" ] || continue
+      matches="$(find "${package_root}" -type f -name "${pkg_name}_*.ipk" | sort)"
+      [ -n "${matches}" ] || fail "未找到目标包产物：${pkg_name}"
 
-    printf '%s\n' "${matches}" | while IFS= read -r artifact; do
-      [ -n "${artifact}" ] || continue
-      cp "${artifact}" "${DIST_DIR}/"
+      printf '%s\n' "${matches}" | while IFS= read -r artifact; do
+        [ -n "${artifact}" ] || continue
+        cp "${artifact}" "${DIST_DIR}/"
+      done
     done
   done < "${PACKAGE_FILE}"
 
