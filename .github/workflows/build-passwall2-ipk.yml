@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - '.github/workflows/build-passwall2-ipk.yml'
+      - 'scripts/build-ipk.sh'
 
 jobs:
   build-passwall2:

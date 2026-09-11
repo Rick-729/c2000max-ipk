@@ -279,16 +279,19 @@ configure_feeds() {
   cd "${SDK_ROOT}"
 
   cp feeds.conf.default feeds.conf
-  while IFS="${TAB}" read -r source_url source_ref feed_name repo_dir source_kind; do
-    [ "${source_kind}" = "git" ] || continue
-    printf '\nsrc-link %s %s\n' "${feed_name}" "${repo_dir}" >> feeds.conf
-  done < "${SOURCE_MAP_FILE}"
 
   log "更新官方 feeds"
   ./scripts/feeds update -a
 
   log "安装官方 feeds"
   ./scripts/feeds install -a
+
+  # 官方 feed 安装完成后才挂载自定义源码，避免 install -a 把整套外部 feed
+  # 都装入 SDK，造成未选中的旧包覆盖当前选中的包。
+  while IFS="${TAB}" read -r source_url source_ref feed_name repo_dir source_kind; do
+    [ "${source_kind}" = "git" ] || continue
+    printf '\nsrc-link %s %s\n' "${feed_name}" "${repo_dir}" >> feeds.conf
+  done < "${SOURCE_MAP_FILE}"
 
   log "安装选定的自定义包"
   while IFS="${TAB}" read -r package_dir source_url source_ref artifact_names; do
