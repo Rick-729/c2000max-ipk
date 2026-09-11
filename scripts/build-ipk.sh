@@ -286,11 +286,22 @@ configure_feeds() {
   log "安装官方 feeds"
   ./scripts/feeds install -a
 
-  # 官方 feed 安装完成后才挂载自定义源码，避免 install -a 把整套外部 feed
-  # 都装入 SDK，造成未选中的旧包覆盖当前选中的包。
+  # 官方 feed 安装完成后才挂载自定义源码。每个 feed 仅暴露本次选择的
+  # 包目录，避免同一外部仓库中未选择的旧包覆盖所选包。
   while IFS="${TAB}" read -r source_url source_ref feed_name repo_dir source_kind; do
     [ "${source_kind}" = "git" ] || continue
-    printf '\nsrc-link %s %s\n' "${feed_name}" "${repo_dir}" >> feeds.conf
+    feed_view="${STATE_DIR}/selected-feeds/${feed_name}"
+    mkdir -p "${feed_view}"
+
+    while IFS="${TAB}" read -r package_dir package_source_url package_source_ref artifact_names; do
+      [ "${package_source_url}" = "${source_url}" ] || continue
+      [ "${package_source_ref}" = "${source_ref}" ] || continue
+      [ -d "${repo_dir}/${package_dir}" ] || fail "源仓库中不存在包目录：${repo_dir}/${package_dir}"
+      mkdir -p "${feed_view}/$(dirname "${package_dir}")"
+      ln -s "${repo_dir}/${package_dir}" "${feed_view}/${package_dir}"
+    done < "${PACKAGE_FILE}"
+
+    printf '\nsrc-link %s %s\n' "${feed_name}" "${feed_view}" >> feeds.conf
   done < "${SOURCE_MAP_FILE}"
 
   # 仅为自定义源码建立 feed 索引；不使用 install -a，避免安装未选择的包。
