@@ -8,6 +8,8 @@ on:
 
 jobs:
   build-passwall2:
+    permissions:
+      contents: write
     uses: ./.github/workflows/build-openwrt-ipk.yml
     with:
       packages: |
