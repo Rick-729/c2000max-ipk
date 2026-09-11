@@ -1,0 +1,22 @@
+name: build-c200max-passwall2-ipk
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/build-passwall2-ipk.yml'
+
+jobs:
+  build-passwall2:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build-openwrt-ipk.yml
+    with:
+      packages: |
+        luci-app-passwall2|https://github.com/Openwrt-Passwall/openwrt-passwall2.git|1.31-1
+        xray-core|https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git|a6860aa06096c7d54c4cada863b10d8a63e7c1a1
+        tcping|https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git|a6860aa06096c7d54c4cada863b10d8a63e7c1a1
+        chinadns-ng|https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git|a6860aa06096c7d54c4cada863b10d8a63e7c1a1
+        v2ray-geodata|https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git|a6860aa06096c7d54c4cada863b10d8a63e7c1a1|v2ray-geoip,v2ray-geosite
+      source_ref: Lede
+      publish_release: false

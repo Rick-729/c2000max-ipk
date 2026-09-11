@@ -298,7 +298,8 @@ configure_feeds() {
     IFS="${TAB}" read -r _map_url _map_ref feed_name repo_dir source_kind <<EOF
 ${mapping}
 EOF
-    pkg_name="${package_dir##*/}"
+    # 一些源码目录会定义多个 IPK；使用清单中的第一个产物名安装其 feed。
+    pkg_name="${artifact_names%%,*}"
 
     ./scripts/feeds install -f -p "${feed_name}" "${pkg_name}"
   done < "${PACKAGE_FILE}"
