@@ -17,6 +17,6 @@ jobs:
         xray-core|https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git|a6860aa06096c7d54c4cada863b10d8a63e7c1a1
         tcping|https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git|a6860aa06096c7d54c4cada863b10d8a63e7c1a1
         chinadns-ng|https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git|a6860aa06096c7d54c4cada863b10d8a63e7c1a1
-        v2ray-geodata|https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git|a6860aa06096c7d54c4cada863b10d8a63e7c1a1|v2ray-geoip,v2ray-geosite
+        v2ray-geodata|https://github.com/Openwrt-Passwall/openwrt-passwall-packages.git|main|v2ray-geoip,v2ray-geosite
       source_ref: Lede
       publish_release: false
